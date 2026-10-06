@@ -3,6 +3,7 @@ import { LockKeyhole, LogIn, ShieldCheck, UserRound } from 'lucide-react';
 import { APP_CONFIG } from '../config/app.js';
 import { getDemoUsers, isDemoAuthEnabled } from '../auth/useAuthSession.js';
 import { ROLE_LABELS } from '../auth/permissions.js';
+import AdminSetup from './AdminSetup.jsx';
 
 export default function LoginScreen({ onLogin }) {
   const demoUsers = getDemoUsers();
@@ -11,6 +12,7 @@ export default function LoginScreen({ onLogin }) {
   const [password, setPassword] = useState(demoUsers[0]?.demoPassword || '');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showAdminSetup, setShowAdminSetup] = useState(false);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -58,6 +60,8 @@ export default function LoginScreen({ onLogin }) {
             <LogIn size={18}/>{busy ? 'Anmeldung läuft ...' : 'Anmelden'}
           </button>
 
+          <button type="button" className="secondary-button login-submit" onClick={() => setShowAdminSetup(true)}>Admin-Zugang einrichten</button>
+
           <div className="login-security">
             <ShieldCheck size={18}/>
             <span>Die Rollen steuern Navigation, Funktionen und Fahrerzugriff.</span>
@@ -67,7 +71,7 @@ export default function LoginScreen({ onLogin }) {
         <aside className="demo-login">
           <div className="demo-heading">
             <UserRound size={18}/>
-            <div><strong>{demoEnabled ? 'Entwicklungszugänge' : 'Produktivzugang'}</strong><span>{demoEnabled ? 'Nur für die aktuelle Aufbauphase' : 'Demo-Anmeldung gesperrt'}</span></div>
+            <div><strong>{demoEnabled ? 'Entwicklungszugänge' : 'Produktivzugang'}</strong><span>{demoEnabled ? 'Nur für die aktuelle Aufbauphase' : 'Persönliche Benutzerkonten aktiv'}</span></div>
           </div>
           {demoEnabled ? (
             <>
@@ -82,10 +86,11 @@ export default function LoginScreen({ onLogin }) {
               <small className="demo-note">Vor dem Livegang wird dieser Demo-Login durch die echte Benutzeranmeldung ersetzt.</small>
             </>
           ) : (
-            <small className="demo-note">Die Oberfläche ist vorbereitet. Der produktive Login wird erst nach Anbindung der echten Benutzerverwaltung freigeschaltet.</small>
+            <small className="demo-note">Nach der einmaligen Admin-Einrichtung werden weitere Chef-, Büro- und Fahrer-Zugänge in der Benutzerverwaltung angelegt.</small>
           )}
         </aside>
       </section>
+      {showAdminSetup && <AdminSetup onClose={() => setShowAdminSetup(false)} onCreated={({ email: newEmail, password: newPassword }) => { setEmail(newEmail); setPassword(newPassword); setError(""); setShowAdminSetup(false); }} />}
     </main>
   );
 }
