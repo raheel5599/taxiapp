@@ -26,3 +26,6 @@ export async function loadTaxiLocations() {
   const { data, error } = await supabase.from('taxi_live_locations').select('*');
   return error ? {ok:false,message:error.message,locations:[]} : {ok:true,locations:data||[]};
 }
+
+
+export const processHaleEvent = input => invoke({ action: 'hale_event', ...input });
