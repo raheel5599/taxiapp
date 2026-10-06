@@ -15,3 +15,14 @@ export const updateWalkInRide = input => invoke({ action: 'update', ...input });
 export const finishWalkInRide = input => invoke({ action: 'finish', ...input });
 export const cancelWalkInRide = rideId => invoke({ action: 'cancel', rideId });
 export const reportTaxiLocation = input => invoke({ action: 'location', ...input });
+
+export async function loadActiveTaxiRides() {
+  const { data, error } = await supabase.from('taxi_live_rides').select('*')
+    .in('status', ['assigned','to_pickup','arrived','occupied']).order('started_at',{ascending:false});
+  return error ? {ok:false,message:error.message,rides:[]} : {ok:true,rides:data||[]};
+}
+
+export async function loadTaxiLocations() {
+  const { data, error } = await supabase.from('taxi_live_locations').select('*');
+  return error ? {ok:false,message:error.message,locations:[]} : {ok:true,locations:data||[]};
+}
