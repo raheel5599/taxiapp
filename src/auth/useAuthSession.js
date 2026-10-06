@@ -4,6 +4,7 @@ import { hasPermission } from './permissions.js';
 
 const STORAGE_KEY = 'tariq-auth-session-v1';
 const SESSION_HOURS = 12;
+const DEMO_AUTH_ENABLED = import.meta.env.DEV || import.meta.env.VITE_AUTH_MODE === 'demo';
 const baseDomain = APP_CONFIG.domain.replace(/^app\./, '');
 
 const DEMO_USERS = Object.freeze([
@@ -55,13 +56,22 @@ function saveSession(session) {
 }
 
 export function getDemoUsers() {
+  if (!DEMO_AUTH_ENABLED) return [];
   return DEMO_USERS.map(({ password, ...user }) => ({ ...user, demoPassword: password }));
+}
+
+export function isDemoAuthEnabled() {
+  return DEMO_AUTH_ENABLED;
 }
 
 export function useAuthSession() {
   const [session, setSession] = useState(loadSession);
 
   const login = async (email, password) => {
+    if (!DEMO_AUTH_ENABLED) {
+      return { ok: false, message: 'Die echte Benutzeranmeldung wird gerade eingerichtet. Der Demo-Login ist im Produktivbetrieb gesperrt.' };
+    }
+
     const normalizedEmail = String(email || '').trim().toLowerCase();
     const user = DEMO_USERS.find(item =>
       item.email.toLowerCase() === normalizedEmail && item.password === password
