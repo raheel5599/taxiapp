@@ -13,6 +13,8 @@ import LoginScreen from './components/LoginScreen.jsx';
 import UserManagement from './components/UserManagement.jsx';
 import DriverManagement from './components/DriverManagement.jsx';
 import VehicleManagement2 from './components/VehicleManagement2.jsx';
+import TaxiLiveRide from './components/TaxiLiveRide.jsx';
+import TaxiLiveOffice from './components/TaxiLiveOffice.jsx';
 import { useFleetData } from './hooks/useFleetData.js';
 import { initialTrips, driversSeed } from './data/demo.js';
 import {
@@ -192,6 +194,8 @@ function App() {
                 <Metric icon={CheckCircle2} label="Abgeschlossen" value={metrics.done} note="Heute fertig" />
                 <Metric icon={Clock3} label="Offen" value={metrics.open} note="Wartet auf Fahrer" warning={metrics.open > 0} />
               </div>
+
+              <TaxiLiveOffice />
 
               <div className="dashboard-grid">
                 <section className="panel trips-panel">
@@ -413,6 +417,7 @@ function DriverApp({ trips, driverName, currentTrip, onStatus, onLogout, user })
       </header>
 
       <main className="driver-content">
+        <TaxiLiveRide vehicle={currentTrip?.vehicle || ""} />
         <div className="driver-page-heading">
           <div><p className="eyebrow">FAHRER WEB APP</p><h1>Meine Aufträge</h1><p>Aufträge live vom Büro erhalten und Fahrtstatus mit einem Klick melden.</p></div>
           <div className="driver-count">{myTrips.length}<span>offene Aufträge</span></div>
