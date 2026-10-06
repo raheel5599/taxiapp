@@ -1,6 +1,6 @@
 {
-  "name": "TARIQ Krankenfahrdienst",
-  "short_name": "TARIQ Fahrdienst",
+  "name": "TARIQ Taxi Zentrale",
+  "short_name": "TARIQ Taxi",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b0c0e",
