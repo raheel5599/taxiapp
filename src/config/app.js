@@ -4,6 +4,7 @@ export const APP_CONFIG = Object.freeze({
   domain: 'app.tariq-zentrale.de',
   logoUrl: 'https://taxi5599.de/assets/taxi/logo-tariq-taxizentrale-header-20261001.png',
   productMode: 'taxi_and_medical_transport',
+  businessUnitCode: 'taxi',
   tripTypes: [
     'Taxi',
     'Großraumtaxi',
