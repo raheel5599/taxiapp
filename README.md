@@ -26,6 +26,6 @@ Gemeinsame interne Plattformbasis für Büro, Disposition und Fahrer.
 - Bar, Karte, Rechnung, Gutschein
 - Zentrale/Spontanaufträge und Vorbestellungen
 
-Zieldomain aktuell vorbereitet als: app.tariq-zentrale.de
+Produktive App-Adresse: https://app.tariq-taxizentrale.de
 
 Die technische Basis wird bewusst parallel zu fahrdienstapp gehalten, damit gemeinsame Funktionen nicht später neu entwickelt werden müssen.
