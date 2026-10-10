@@ -1,0 +1,10 @@
+services:
+  app:
+    build: .
+    container_name: tariq-taxi-app
+    restart: unless-stopped
+    networks: [web]
+networks:
+  web:
+    external: true
+    name: fahrschulpilot_web
