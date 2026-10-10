@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { APP_CONFIG } from '../config/app.js';
 
-const prefix = `tariq-fahrdienst:v${APP_CONFIG.dataVersion}:`;
+const prefix = `tariq-taxi:v${APP_CONFIG.dataVersion}:`;
 
 export function readStoredValue(key, fallback) {
   try {

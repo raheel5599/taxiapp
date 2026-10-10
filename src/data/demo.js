@@ -1,32 +1,38 @@
 export const initialTrips = [
   {
-    id: 'T-2001', time: '08:10', patient: 'Müller, Anna', type: 'Taxi',
-    from: 'Florstadt, Altenstädter Str. 8', to: 'Bahnhof Friedberg',
+    id: 'F-1024', time: '08:00', patient: 'Müller, Anna', type: 'Dialyse',
+    from: 'Florstadt, Altenstädter Str. 8', to: 'Dialysezentrum Friedberg',
     driver: 'Ahmad', vehicle: 'FB-TT 5599', status: 'abgeschlossen',
-    wheelchair: false, audit: []
+    wheelchair: true, audit: []
   },
   {
-    id: 'T-2002', time: '09:30', patient: 'Schmidt, Karl', type: 'Dialyse',
-    from: 'Florstadt, Lindenstraße 12', to: 'Dialysezentrum Friedberg',
+    id: 'F-1025', time: '09:30', patient: 'Schmidt, Karl', type: 'Chemotherapie',
+    from: 'Florstadt, Lindenstraße 12', to: 'St. Johannes Hospital Frankfurt',
     driver: 'Imran', vehicle: 'FB-VD 5599', status: 'in_fahrt',
     wheelchair: false, audit: []
   },
   {
-    id: 'T-2003', time: '11:00', patient: 'Yilmaz, Mehmet', type: 'Flughafentransfer',
-    from: 'Reichelsheim, Hauptstraße 31', to: 'Frankfurt Flughafen Terminal 1',
+    id: 'F-1026', time: '11:00', patient: 'Yilmaz, Mehmet', type: 'Arztfahrt',
+    from: 'Reichelsheim, Hauptstraße 31', to: 'Praxis Dr. Weber, Bad Nauheim',
     driver: 'Bilal', vehicle: 'FB-CM 5599', status: 'auf_dem_weg',
     wheelchair: false, audit: []
   },
   {
-    id: 'T-2004', time: '13:15', patient: 'Becker, Lisa', type: 'Rollstuhlfahrt',
+    id: 'F-1027', time: '13:15', patient: 'Becker, Lisa', type: 'Reha',
     from: 'Friedberg, Kaiserstraße 47', to: 'MediClin Bad Orb',
     driver: 'Hamza', vehicle: 'FB-TT 5600', status: 'geplant',
     wheelchair: true, audit: []
   },
   {
-    id: 'T-2005', time: '15:00', patient: 'Schneider, Thomas', type: 'Taxi',
-    from: 'Bad Nauheim, Parkstraße 3', to: 'Florstadt',
+    id: 'F-1028', time: '15:00', patient: 'Schneider, Thomas', type: 'Krankenhaus',
+    from: 'Bad Nauheim, Parkstraße 3', to: 'Knappschaftsklinik',
     driver: '', vehicle: '', status: 'offen',
+    wheelchair: false, audit: []
+  },
+  {
+    id: 'F-1029', time: '16:30', patient: 'Özdemir, Fatma', type: 'Dialyse',
+    from: 'Florstadt, Am Mühlbach 18', to: 'Dialysezentrum Bad Vilbel',
+    driver: 'Ali', vehicle: 'FB-CM 5599', status: 'geplant',
     wheelchair: false, audit: []
   }
 ];

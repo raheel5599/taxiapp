@@ -1,0 +1,170 @@
+import React,{useEffect,useMemo,useState} from 'react';
+import {ShieldCheck,X} from 'lucide-react';
+import {APP_CONFIG} from '../config/app.js';
+import {assignTrip,cancelTrip,createTrip} from '../data/dispatch.js';
+
+function localDate(){
+  const d=new Date();
+  return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+}
+function addressOf(c){return [c?.street,c?.postalCode,c?.city].filter(Boolean).join(', ');}
+function fmt(value){return value?new Date(value).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';}
+function durationFor(type){
+  const value=String(type||'').toLowerCase();
+  if(value.includes('dialyse')||value.includes('chemo')||value.includes('krankenhaus')) return 90;
+  if(value.includes('rollstuhl')) return 75;
+  return 60;
+}
+function minuteOfDay(value){
+  const parts=String(value||'00:00').split(':').map(Number);
+  return (parts[0]||0)*60+(parts[1]||0);
+}
+function hasConflict(form,trips,driverId,vehicleId,excludeId){
+  if(!form.serviceDate||!form.scheduledTime)return null;
+  const start=minuteOfDay(form.scheduledTime);
+  const duration=durationFor(form.tripType);
+  return (trips||[]).find(item=>{
+    if(item.id===excludeId||item.date!==form.serviceDate||['abgeschlossen','storniert','no_show'].includes(item.status))return false;
+    if(driverId&&item.driverId!==driverId)return false;
+    if(vehicleId&&item.vehicleId!==vehicleId)return false;
+    const otherStart=minuteOfDay(item.time);
+    const otherDuration=durationFor(item.type);
+    return start<otherStart+otherDuration+15&&otherStart<start+duration+15;
+  })||null;
+}
+
+export default function LiveDispatchModal({trip,trips=[],clients,drivers,vehicles,onClose,onSaved}){
+  const initialCustomer=clients.find(c=>c.id===trip?.customerId)||clients[0]||null;
+  const initialDriver=drivers.find(d=>d.id===trip?.driverId)||null;
+  const [form,setForm]=useState({
+    customerId:trip?.customerId||initialCustomer?.id||'',
+    serviceDate:trip?.date||localDate(),
+    scheduledTime:trip?.time||'12:00',
+    direction:trip?.direction||'outbound',
+    tripType:trip?.type||APP_CONFIG.tripTypes[0],
+    fromAddress:trip?.from||addressOf(initialCustomer),
+    destinationId:'',
+    toAddress:trip?.to||'',
+    driverId:trip?.driverId||'',
+    vehicleId:trip?.vehicleId||initialDriver?.vehicleId||'',
+    billingPayerType:trip?.billingPayerType||'private',privatePrice:trip?.privatePrice??'',privateVatRate:trip?.privateVatRate??0,
+    notes:trip?.notes||''
+  });
+  const [saving,setSaving]=useState(false);
+  const [error,setError]=useState('');
+  const customer=clients.find(c=>c.id===form.customerId);
+  const selectedDriver=drivers.find(d=>d.id===form.driverId);
+  const set=(key,value)=>setForm(v=>({...v,[key]:value}));
+
+  useEffect(()=>{
+    if(form.driverId&&!form.vehicleId&&selectedDriver?.vehicleId)set('vehicleId',selectedDriver.vehicleId);
+  },[form.driverId,selectedDriver?.vehicleId]);
+
+  const availableVehicles=useMemo(
+    ()=>vehicles.filter(v=>v.active!==false&&!['werkstatt','offline'].includes(v.status)),
+    [vehicles]
+  );
+  const driverConflict=useMemo(()=>form.driverId?hasConflict(form,trips,form.driverId,null,trip?.id):null,[form.serviceDate,form.scheduledTime,form.tripType,form.driverId,trips,trip?.id]);
+  const vehicleConflict=useMemo(()=>form.vehicleId?hasConflict(form,trips,null,form.vehicleId,trip?.id):null,[form.serviceDate,form.scheduledTime,form.tripType,form.vehicleId,trips,trip?.id]);
+  const suggestedDriver=useMemo(()=>drivers.find(driver=>{
+    if(driver.active===false||['offline','pause'].includes(driver.status)||!driver.vehicleId)return false;
+    const vehicle=vehicles.find(v=>v.id===driver.vehicleId);
+    if(!vehicle||vehicle.active===false||['werkstatt','offline'].includes(vehicle.status))return false;
+    return !hasConflict(form,trips,driver.id,null,trip?.id)&&!hasConflict(form,trips,null,driver.vehicleId,trip?.id);
+  })||null,[drivers,vehicles,trips,form.serviceDate,form.scheduledTime,form.tripType,trip?.id]);
+
+  function chooseCustomer(id){
+    const c=clients.find(x=>x.id===id);
+    setForm(v=>({...v,customerId:id,fromAddress:addressOf(c),destinationId:'',toAddress:'',tripType:v.tripType}));
+  }
+
+  function chooseDestination(id){
+    const dest=customer?.destinations?.find(d=>d.id===id);
+    setForm(v=>({...v,destinationId:id,toAddress:dest?.address||'',tripType:dest?.destination_type==='dialysis'?'Dialyse':v.tripType}));
+  }
+
+  async function submit(e){
+    e.preventDefault();
+    setSaving(true);setError('');
+    try{
+      if(driverConflict){setError('Fahrer-Konflikt: Die ausgewählte Fahrt überschneidet sich mit einer anderen Fahrt inklusive 15 Minuten Puffer.');return;}
+      if(vehicleConflict){setError('Fahrzeug-Konflikt: Das ausgewählte Fahrzeug ist in diesem Zeitraum bereits eingeplant.');return;}
+      if(trip?.id){
+        if(!form.driverId||!form.vehicleId){setError('Bitte Fahrer und Fahrzeug auswählen.');return;}
+        const result=await assignTrip(trip.id,form.driverId,form.vehicleId);
+        if(!result.ok){setError(result.message||'Fahrt konnte nicht zugewiesen werden.');return;}
+        await onSaved('Fahrt wurde zugewiesen.');
+        return;
+      }
+
+      const created=await createTrip(form);
+      if(!created.ok){setError(created.message||'Fahrt konnte nicht angelegt werden.');return;}
+      const newTripId=created.data?.trip?.id;
+      if(form.driverId&&form.vehicleId&&newTripId){
+        const assigned=await assignTrip(newTripId,form.driverId,form.vehicleId);
+        if(!assigned.ok){setError('Fahrt wurde angelegt, aber die Zuweisung ist fehlgeschlagen: '+assigned.message);await onSaved('Fahrt wurde angelegt.');return;}
+      }
+      await onSaved(form.driverId?'Fahrt wurde angelegt und zugewiesen.':'Fahrt wurde als offen angelegt.');
+    }finally{
+      setSaving(false);
+    }
+  }
+
+  async function cancel(){
+    if(!trip?.id)return;
+    if(!window.confirm('Diese Fahrt wirklich stornieren?'))return;
+    setSaving(true);setError('');
+    const result=await cancelTrip(trip.id);
+    setSaving(false);
+    if(!result.ok){setError(result.message||'Fahrt konnte nicht storniert werden.');return;}
+    await onSaved('Fahrt wurde storniert.');
+  }
+
+  return <div className="modal-layer">
+    <button className="modal-backdrop" onClick={onClose} aria-label="Schließen"/>
+    <form className="modal-card dispatch-live-modal" onSubmit={submit}>
+      <div className="modal-head">
+        <div><p className="eyebrow">LIVE-DISPOSITION</p><h2>{trip?'Fahrt zuweisen / ändern':'Neue Fahrt anlegen'}</h2></div>
+        <button type="button" className="icon-button" onClick={onClose}><X/></button>
+      </div>
+
+      <div className="form-section-title">Fahrt</div>
+      <div className="form-grid">
+        <label><span>Kunde</span><select value={form.customerId} onChange={e=>chooseCustomer(e.target.value)} required disabled={Boolean(trip)}><option value="">Kunde auswählen</option>{clients.map(c=><option key={c.id} value={c.id}>{c.fullName}</option>)}</select></label>
+        <label><span>Fahrtart</span><select value={form.tripType} onChange={e=>set('tripType',e.target.value)} disabled={Boolean(trip)}>{APP_CONFIG.tripTypes.map(type=><option key={type}>{type}</option>)}</select></label>
+        <label><span>Datum</span><input type="date" value={form.serviceDate} onChange={e=>set('serviceDate',e.target.value)} required disabled={Boolean(trip)}/></label>
+        <label><span>Uhrzeit</span><input type="time" value={form.scheduledTime} onChange={e=>set('scheduledTime',e.target.value)} required disabled={Boolean(trip)}/></label>
+        <label><span>Richtung</span><select value={form.direction} onChange={e=>set('direction',e.target.value)} disabled={Boolean(trip)}><option value="outbound">Hinfahrt</option><option value="return">Rückfahrt</option></select></label>
+        {<><label><span>Abrechnung</span><select aria-label="Abrechnung" value={form.billingPayerType} onChange={e=>set('billingPayerType',e.target.value)} disabled={Boolean(trip)}><option value="auto">Nach hinterlegter Krankenversicherung</option><option value="insurer">Krankenkasse</option><option value="private">Privatfahrt</option></select></label>{form.billingPayerType==='private'&&<><label><span>Privatpreis € je Fahrtrichtung</span><input type="number" min="0.01" step="0.01" value={form.privatePrice} onChange={e=>set('privatePrice',e.target.value)} disabled={Boolean(trip)} placeholder="Optional, später prüfen"/></label><label><span>MwSt. Privatfahrt</span><select value={form.privateVatRate} onChange={e=>set('privateVatRate',e.target.value)} disabled={Boolean(trip)}><option value="0">0 %</option><option value="7">7 %</option><option value="19">19 %</option></select></label></>}</>}
+        <label><span>Häufiges Ziel</span><select value={form.destinationId} onChange={e=>chooseDestination(e.target.value)} disabled={Boolean(trip)}><option value="">Manuell</option>{(customer?.destinations||[]).map(d=><option key={d.id} value={d.id}>{d.label}</option>)}</select></label>
+        <label className="wide"><span>Abholadresse</span><input value={form.fromAddress} onChange={e=>set('fromAddress',e.target.value)} required disabled={Boolean(trip)}/></label>
+        <label className="wide"><span>Zieladresse</span><input value={form.toAddress} onChange={e=>set('toAddress',e.target.value)} required disabled={Boolean(trip)}/></label>
+      </div>
+
+      <div className="form-section-title">Zuweisung</div>
+      {suggestedDriver&&!form.driverId&&<div className="dispatch-suggestion"><strong>Intelligenter Vorschlag</strong><span>{suggestedDriver.name} · {suggestedDriver.vehicle||'Fahrzeug zugeordnet'} ist in diesem Zeitfenster frei.</span><button type="button" className="text-button" onClick={()=>setForm(v=>({...v,driverId:suggestedDriver.id,vehicleId:suggestedDriver.vehicleId||''}))}>Übernehmen</button></div>}
+      <div className="form-grid">
+        <label><span>Fahrer</span><select value={form.driverId} onChange={e=>{const id=e.target.value;const d=drivers.find(x=>x.id===id);setForm(v=>({...v,driverId:id,vehicleId:d?.vehicleId||v.vehicleId}));}}><option value="">Noch nicht zuweisen</option>{drivers.filter(d=>d.active!==false).map(d=><option key={d.id} value={d.id}>{d.name} · {d.status}</option>)}</select></label>
+        <label><span>Fahrzeug</span><select value={form.vehicleId} onChange={e=>set('vehicleId',e.target.value)} disabled={!form.driverId}><option value="">Fahrzeug auswählen</option>{availableVehicles.map(v=><option key={v.id} value={v.id}>{v.registration} · {v.status}</option>)}</select></label>
+        <label className="wide"><span>Interne Notiz</span><textarea rows="2" value={form.notes} onChange={e=>set('notes',e.target.value)} disabled={Boolean(trip)}/></label>
+      </div>
+
+      {(driverConflict||vehicleConflict)&&<div className="dispatch-conflict-warning"><strong>Termin-Konflikt erkannt</strong><span>{driverConflict?'Der Fahrer ist in diesem Zeitfenster bereits eingeplant. ':''}{vehicleConflict?'Das Fahrzeug ist in diesem Zeitfenster bereits eingeplant. ':''}Berechnet mit geschätzter Fahrtdauer und 15 Minuten Puffer.</span></div>}
+      {trip&&<div className="dispatch-timeline">
+        <div><span>Zugewiesen</span><strong>{fmt(trip.assignedAt)}</strong></div>
+        <div><span>Auf dem Weg</span><strong>{fmt(trip.onTheWayAt)}</strong></div>
+        <div><span>Angekommen</span><strong>{fmt(trip.arrivedAt)}</strong></div>
+        <div><span>Fahrt gestartet</span><strong>{fmt(trip.startedAt)}</strong></div>
+        <div><span>Fahrt beendet</span><strong>{fmt(trip.completedAt)}</strong></div>
+      </div>}
+      {error&&<div className="login-error">{error}</div>}
+      <div className="modal-summary"><ShieldCheck size={18}/><span>Nach der Zuweisung erscheint die Fahrt automatisch in der Fahrer-Web-App. Statuswechsel und Uhrzeiten werden zentral protokolliert.</span></div>
+      <div className="modal-actions dispatch-modal-actions">
+        {trip&& !['abgeschlossen','storniert'].includes(trip.status)&&<button type="button" className="danger-button" onClick={cancel} disabled={saving}>Fahrt stornieren</button>}
+        <span/>
+        <button type="button" className="secondary-button" onClick={onClose}>Abbrechen</button>
+        <button className="primary-button" disabled={saving||!clients.length||Boolean(driverConflict)||Boolean(vehicleConflict)}>{saving?'Wird gespeichert …':trip?'Zuweisung speichern':'Fahrt speichern'}</button>
+      </div>
+    </form>
+  </div>;
+}

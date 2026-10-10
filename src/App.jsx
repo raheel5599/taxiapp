@@ -1,9 +1,17 @@
-import React, { useMemo, useState } from 'react';
+import TaxiLiveOffice from './components/TaxiLiveOffice.jsx';
+import Messages from './components/Messages.jsx';
+import UtilizationReports from './components/UtilizationReports.jsx';
+import AccountingManagement from './components/AccountingManagement.jsx';
+import ShiftReports from './components/ShiftReports.jsx';
+import FinanceReports from './components/FinanceReports.jsx';
+import DocumentManagement from './components/DocumentManagement.jsx';
+import BusinessSettings from './components/BusinessSettings.jsx';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Activity, BadgeEuro, Bell, BookOpenCheck, Building2, CalendarDays, Car,
   ChartNoAxesCombined, CheckCircle2, ChevronDown, CircleUserRound, Clock3,
   FileCheck2, FileText, Gauge, Home, Landmark, MapPinned,
-  Menu, MessageSquareText, Plus, ReceiptText, Route, Search, Settings,
+  Menu, MoreHorizontal, MessageSquareText, Plus, ReceiptText, Route, Search, Settings,
   ShieldCheck, Stethoscope, UserRoundCheck, UsersRound, WalletCards, X, LogOut
 } from 'lucide-react';
 import { APP_CONFIG, ROLES } from './config/app.js';
@@ -11,11 +19,25 @@ import { NAV_PERMISSION, PERMISSIONS, ROLE_LABELS } from './auth/permissions.js'
 import { useAuthSession } from './auth/useAuthSession.js';
 import LoginScreen from './components/LoginScreen.jsx';
 import UserManagement from './components/UserManagement.jsx';
+import ClientManagement from './components/ClientManagement.jsx';
+import ScheduleManagement from './components/ScheduleManagement.jsx';
+import LiveDispatchBoard from './components/LiveDispatchBoard.jsx';
+import TripHistory from './components/TripHistory.jsx';
+import LiveDispatchModal from './components/LiveDispatchModal.jsx';
+import DriverPortal from './components/DriverPortal.jsx';
 import DriverManagement from './components/DriverManagement.jsx';
-import VehicleManagement2 from './components/VehicleManagement2.jsx';
-import TaxiLiveRide from './components/TaxiLiveRide.jsx';
-import TaxiLiveOffice from './components/TaxiLiveOffice.jsx';
+import VehicleManagement from './components/VehicleManagement.jsx';
+import ContractManagement from './components/ContractManagement.jsx';
+import InvoiceManagement from './components/InvoiceManagement.jsx';
+import ReceiptManagement from './components/ReceiptManagement.jsx';
+import BillingManagement from './components/BillingManagement.jsx';
 import { useFleetData } from './hooks/useFleetData.js';
+import { useClientData } from './hooks/useClientData.js';
+import { useScheduleData } from './hooks/useScheduleData.js';
+import { useDispatchData } from './hooks/useDispatchData.js';
+import { useContractData } from './hooks/useContractData.js';
+import { useFinanceData } from './hooks/useFinanceData.js';
+import { useBillingData } from './hooks/useBillingData.js';
 import { initialTrips, driversSeed } from './data/demo.js';
 import {
   DRIVER_WORKFLOW,
@@ -33,7 +55,7 @@ const nav = [
   ['kunden', 'Kundenverwaltung', UsersRound],
   ['disposition', 'Fahrten / Disposition', Route],
   ['termine', 'Terminverwaltung', CalendarDays],
-  ['kassen', 'Kassen, Verträge & Tarife', ShieldCheck],
+  ['kassen', 'Kassen & Verträge', ShieldCheck],
   ['abrechnung', 'Abrechnungen', BadgeEuro],
   ['rechnungen', 'Rechnungen', ReceiptText],
   ['fahrzeuge', 'Fahrzeugverwaltung', Car],
@@ -55,21 +77,42 @@ function StatusPill({ status }) {
 
 function App() {
   const { session, loading, login, logout, can } = useAuthSession();
+  const [financeTab, setFinanceTab] = useState('invoices');
+  const [reportTab,setReportTab]=useState('finance');
+  const [billingInitialView,setBillingInitialView]=useState('cases');
+  const [dispatchTab,setDispatchTab]=useState('live');
   const [active, setActive] = useState('dashboard');
   const [mobileNav, setMobileNav] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [trips, setTrips] = usePersistentState('trips', initialTrips);
-  const [drivers, setDrivers] = usePersistentState('drivers', driversSeed);
+  const [demoDrivers, setDemoDrivers] = usePersistentState('drivers', driversSeed);
+  useEffect(()=>{
+    if(!mobileNav)return;
+    const close=event=>{if(event.key==='Escape')setMobileNav(false)};
+    window.addEventListener('keydown',close);
+    return()=>window.removeEventListener('keydown',close);
+  },[mobileNav]);
+  const isStaffSession = Boolean(session && session.user.role !== ROLES.DRIVER);
+  const fleet = useFleetData(isStaffSession);
+  const clientData = useClientData(isStaffSession);
+  const scheduleData = useScheduleData(isStaffSession);
+  const dispatchData = useDispatchData(Boolean(session),session?.user?.id);
+  const contractData = useContractData(isStaffSession);
+  const financeData = useFinanceData(isStaffSession);
+  const billingData = useBillingData(isStaffSession);
+  const drivers = fleet.remote ? fleet.drivers : demoDrivers;
+  const setDriverState = fleet.remote ? (() => {}) : setDemoDrivers;
+  const activeTrips = session?.mode === 'supabase' ? [] : trips;
   const driverName = session?.user?.driverName || 'Imran';
 
   const metrics = useMemo(() => ({
-    today: trips.length,
-    moving: trips.filter(t => [TRIP_STATUS.ON_THE_WAY,TRIP_STATUS.ARRIVED,TRIP_STATUS.IN_PROGRESS].includes(t.status)).length,
-    done: trips.filter(t => t.status === TRIP_STATUS.COMPLETED).length,
-    open: trips.filter(t => t.status === TRIP_STATUS.OPEN).length
-  }), [trips]);
+    today: activeTrips.length,
+    moving: activeTrips.filter(t => [TRIP_STATUS.ON_THE_WAY,TRIP_STATUS.ARRIVED,TRIP_STATUS.IN_PROGRESS].includes(t.status)).length,
+    done: activeTrips.filter(t => t.status === TRIP_STATUS.COMPLETED).length,
+    open: activeTrips.filter(t => t.status === TRIP_STATUS.OPEN).length
+  }), [activeTrips]);
 
-  const currentDriverTrip = trips.find(t =>
+  const currentDriverTrip = activeTrips.find(t =>
     t.driver === driverName && [TRIP_STATUS.PLANNED,TRIP_STATUS.ON_THE_WAY,TRIP_STATUS.ARRIVED,TRIP_STATUS.IN_PROGRESS].includes(t.status)
   );
 
@@ -83,6 +126,9 @@ function App() {
 
   const user = session.user;
   const visibleNav = nav.filter(([id]) => can(NAV_PERMISSION[id]));
+  const mobileTabs=[['dashboard','Start',Home],['disposition','Fahrten',Route],['kunden','Kunden',UsersRound],['termine','Termine',CalendarDays]].filter(([id])=>can(NAV_PERMISSION[id]));
+  const navigate=id=>{setActive(id);setMobileNav(false);window.scrollTo({top:0,behavior:'instant'})};
+  const todayLabel=new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());
 
   const updateTripStatus = (tripId, status) => {
     const trip = trips.find(t => t.id === tripId);
@@ -100,7 +146,7 @@ function App() {
     } : t));
 
     if (trip.driver) {
-      setDrivers(prev => prev.map(d =>
+      setDriverState(prev => prev.map(d =>
         d.name === trip.driver
           ? { ...d, status: status === TRIP_STATUS.COMPLETED ? 'frei' : status }
           : d
@@ -122,28 +168,19 @@ function App() {
   };
 
   if (user.role === ROLES.DRIVER) {
-    return (
-      <DriverApp
-        trips={trips}
-        driverName={driverName}
-        currentTrip={currentDriverTrip}
-        onStatus={updateTripStatus}
-        onLogout={logout}
-        user={user}
-      />
-    );
+    return <DriverPortal data={dispatchData} user={user} onLogout={logout} />;
   }
 
   return (
     <div className="app-shell">
       <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
         <div className="sidebar-brand">
-          <img src={LOGO} alt="TARIQ Taxi Zentrale" />
+          <img src={LOGO} alt={APP_CONFIG.name} />
           <button className="icon-button close-nav" onClick={() => setMobileNav(false)} aria-label="Menü schließen"><X /></button>
         </div>
-        <nav>
+        <nav aria-label="Hauptmenü">
           {visibleNav.map(([id, label, Icon]) => (
-            <button key={id} className={active === id ? 'active' : ''} onClick={() => { setActive(id); setMobileNav(false); }}>
+            <button key={id} className={active === id ? 'active' : ''} aria-current={active===id?'page':undefined} onClick={() => navigate(id)}>
               <Icon size={19}/><span>{label}</span>
             </button>
           ))}
@@ -159,11 +196,11 @@ function App() {
       <main className="main">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="icon-button menu-button" onClick={() => setMobileNav(true)}><Menu /></button>
-            <div className="searchbox"><Search size={18}/><input placeholder="Suche Kunden, Fahrten, Rechnungen ..." /></div>
+            <button className="icon-button menu-button" aria-label="Menü öffnen" aria-expanded={mobileNav} onClick={() => setMobileNav(true)}><Menu /><span className="mobile-menu-label">Menü</span></button>
+            <div className="topbar-brand"><span className="desktop-brand">TARIQ · Verwaltung</span><span className="mobile-brand">TARIQ Taxi</span></div>
           </div>
           <div className="topbar-actions">
-            <button className="icon-button bell"><Bell /><span>3</span></button>
+
             <div className="role-button">
               <CircleUserRound size={26}/>
               <span><strong>{user.name}</strong><small>{ROLE_LABELS[user.role]}</small></span>
@@ -172,119 +209,77 @@ function App() {
           </div>
         </header>
 
-        <section className="page">
+        <section className={`page page-${active}`}>
           <div className="page-heading">
             <div>
               <p className="eyebrow">TARIQ TAXI ZENTRALE</p>
-              <h1>{active === 'dashboard' ? 'Übersicht & Live-Disposition' : nav.find(n => n[0] === active)?.[1]}</h1>
-              <p>Alle wichtigen Abläufe zentral steuern, dokumentieren und abrechnen.</p>
+              <h1>{active === 'dashboard' ? <><span className="desktop-page-title">Übersicht & Live-Disposition</span><span className="mobile-page-title">Hallo {user.name?.split(' ')[0]||'und willkommen'}</span></> : nav.find(n => n[0] === active)?.[1]}</h1>
+              <p className="desktop-page-description">Alle wichtigen Abläufe zentral steuern, dokumentieren und abrechnen.</p>
+              {active==='dashboard'&&<p className="mobile-page-date">{todayLabel}</p>}
             </div>
             <div className="heading-actions">
               {can(PERMISSIONS.TRIPS_MANAGE) && <button className="primary-button" onClick={() => setDispatchOpen(true)}><Plus size={18}/> Neue Fahrt</button>}
             </div>
           </div>
 
-          {active === 'benutzer' && can(PERMISSIONS.USERS_MANAGE) ? (
+          {active === 'einstellungen' && can(PERMISSIONS.SETTINGS_MANAGE) ? (
+            <BusinessSettings />
+          ) : active === 'benutzer' && can(PERMISSIONS.USERS_MANAGE) ? (
             <UserManagement drivers={drivers} currentUser={user} />
-          ) : active === 'dashboard' || active === 'disposition' ? (
-            <>
-              <div className="metrics">
-                <Metric icon={CalendarDays} label="Heute geplant" value={metrics.today} note="Fahrten gesamt" />
-                <Metric icon={Car} label="Unterwegs" value={metrics.moving} note="Live aktiv" />
-                <Metric icon={CheckCircle2} label="Abgeschlossen" value={metrics.done} note="Heute fertig" />
-                <Metric icon={Clock3} label="Offen" value={metrics.open} note="Wartet auf Fahrer" warning={metrics.open > 0} />
-              </div>
-
-              <TaxiLiveOffice />
-
-              <div className="dashboard-grid">
-                <section className="panel trips-panel">
-                  <PanelTitle icon={Route} title="Heute – Live-Disposition" right={<button className="text-button">Alle Fahrten</button>} />
-                  <div className="trip-list">
-                    {trips.map(t => (
-                      <div className="trip-row" key={t.id}>
-                        <div className="time">{t.time}</div>
-                        <div className="trip-main">
-                          <div className="patient-line">
-                            <strong>{t.patient}</strong>
-                            {t.wheelchair && <span className="mini-badge">Rollstuhl</span>}
-                          </div>
-                          <span>{t.type} · {t.to}</span>
-                        </div>
-                        <div className="trip-assignment">
-                          <strong>{t.driver || 'Noch offen'}</strong>
-                          <span>{t.vehicle || 'Kein Fahrzeug'}</span>
-                        </div>
-                        <StatusPill status={t.status} />
-                        <button className="row-action" onClick={() => setDispatchOpen(t.id)}>Bearbeiten</button>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="panel driver-panel">
-                  <PanelTitle icon={UserRoundCheck} title="Fahrerstatus" right={<span className="live-label"><span/> LIVE</span>} />
-                  <div className="driver-cards">
-                    {drivers.map(d => (
-                      <div className="driver-card" key={d.name}>
-                        <div className="driver-avatar">{d.name.slice(0,1)}</div>
-                        <div><strong>{d.name}</strong><span>{d.vehicle}</span></div>
-                        <StatusPill status={d.status === 'frei' ? 'abgeschlossen' : d.status} />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="panel map-panel">
-                  <PanelTitle icon={MapPinned} title="Fahrzeuge Live" right={<button className="text-button">Karte öffnen</button>} />
-                  <div className="map-placeholder">
-                    <div className="map-grid" />
-                    <div className="map-city city-one">FRANKFURT</div>
-                    <div className="map-city city-two">FRIEDBERG</div>
-                    <div className="map-city city-three">FLORSTADT</div>
-                    {drivers.slice(0,5).map((d, i) => (
-                      <div key={d.name} className={`vehicle-pin pin-${i+1}`}><Car size={16}/><span>{d.vehicle}</span></div>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="panel quick-panel">
-                  <PanelTitle icon={Gauge} title="Schnellaktionen" />
-                  <div className="quick-grid">
-                    <Quick icon={UsersRound} text="Neuer Kunde" />
-                    <Quick icon={CalendarDays} text="Neue Fahrt" onClick={() => setDispatchOpen(true)} />
-                    <Quick icon={ReceiptText} text="Rechnung erstellen" />
-                    <Quick icon={BadgeEuro} text="Abrechnung starten" />
-                    <Quick icon={Car} text="Fahrzeug buchen" />
-                    <Quick icon={ChartNoAxesCombined} text="Bericht erstellen" />
-                  </div>
-                </section>
-              </div>
-
-              <div className="module-strip">
-                <Feature icon={Stethoscope} title="Stammkunden" text="Dialyse, Reha, Serienfahrten" />
-                <Feature icon={WalletCards} title="Kassen, Verträge & Tarife" text="AOK, TK, BARMER, DAK u. a." />
-                <Feature icon={FileText} title="Verordnungen" text="Dokumente direkt zur Fahrt" />
-                <Feature icon={BookOpenCheck} title="Buchhaltung" text="Belege, Rechnungen, Auswertung" />
-                <Feature icon={Activity} title="Lückenlose Historie" text="Fahrer, Fahrzeug, Uhrzeiten, Status" />
-              </div>
-            </>
+          ) : active === 'kunden' && can(PERMISSIONS.CUSTOMERS_MANAGE) ? (
+            <ClientManagement data={clientData} trips={dispatchData.trips} />
+          ) : active === 'dokumente' && can(PERMISSIONS.DOCUMENTS_MANAGE) ? (
+            <DocumentManagement clients={clientData.clients} trips={dispatchData.trips} />
+          ) : active === 'rechnungen' && can(PERMISSIONS.INVOICES_MANAGE) ? (
+            <div><div className="module-tabs finance-tabs" aria-label="Finanzdokumente"><button className={financeTab==='invoices'?'active':''} onClick={()=>setFinanceTab('invoices')}>Rechnungen</button><button className={financeTab==='receipts'?'active':''} onClick={()=>setFinanceTab('receipts')}>Quittungen</button></div>{financeTab==='invoices'?<InvoiceManagement data={financeData} clients={clientData.clients} contracts={contractData} billingCases={billingData.cases} onBillingRefresh={billingData.refresh} onOpenBilling={view=>{setBillingInitialView(view||'cases');setActive('abrechnung')}} />:<ReceiptManagement data={financeData} clients={clientData.clients} />}</div>
+          ) : active === 'abrechnung' && can(PERMISSIONS.BILLING_MANAGE) ? (
+            <BillingManagement initialView={billingInitialView} data={billingData} financeData={financeData} onFinanceRefresh={financeData.refresh} clients={clientData.clients} trips={dispatchData.trips} />
+          ) : active === 'kassen' && can(PERMISSIONS.CONTRACTS_MANAGE) ? (
+            <ContractManagement data={contractData} />
+          ) : active === 'termine' && can(PERMISSIONS.SCHEDULE_MANAGE) ? (
+            <ScheduleManagement data={scheduleData} clients={clientData.clients} />
+          ) : active === 'fahrer' && can(PERMISSIONS.DRIVERS_MANAGE) ? (
+            <DriverManagement canEditDrivers={user.role===ROLES.ADMIN} drivers={drivers} vehicles={fleet.vehicles} loading={fleet.loading} error={fleet.error} refresh={fleet.refresh} />
+          ) : active === 'fahrzeuge' && can(PERMISSIONS.VEHICLES_MANAGE) ? (
+            <VehicleManagement vehicles={fleet.vehicles} loading={fleet.loading} error={fleet.error} refresh={fleet.refresh} />
+          ) : active === 'buchhaltung' && can(PERMISSIONS.ACCOUNTING_MANAGE) ? (
+            <AccountingManagement/>
+          ) : active === 'nachrichten' && can(PERMISSIONS.MESSAGES_USE) ? (
+            <Messages/>
+          ) : active === 'berichte' && can(PERMISSIONS.REPORTS_VIEW) ? (
+            <div><div className="module-tabs finance-tabs" aria-label="Berichtsart"><button className={reportTab==='finance'?'active':''} onClick={()=>setReportTab('finance')}>Rechnungen & Kostenträger</button><button className={reportTab==='shifts'?'active':''} onClick={()=>setReportTab('shifts')}>Schichten & Kilometer</button><button className={reportTab==='utilization'?'active':''} onClick={()=>setReportTab('utilization')}>Fahrer & Fahrzeuge</button></div>{reportTab==='finance'?<FinanceReports data={financeData}/>:reportTab==='shifts'?<ShiftReports drivers={drivers}/>:<UtilizationReports/>}</div>
+          ) : active === 'disposition' ? (
+            <div><div className="module-tabs finance-tabs" aria-label="Fahrtenansicht"><button className={dispatchTab==='live'?'active':''} onClick={()=>setDispatchTab('live')}>Live-Disposition</button><button className={dispatchTab==='history'?'active':''} onClick={()=>setDispatchTab('history')}>Fahrtenhistorie</button></div>{dispatchTab==='history'?<TripHistory clients={clientData.clients} onRecorded={()=>Promise.all([dispatchData.refresh(),billingData.refresh()])}/>:<LiveDispatchBoard data={dispatchData} drivers={drivers} vehicles={fleet.vehicles} onNew={()=>setDispatchOpen(true)} onEdit={id=>setDispatchOpen(id)}/>}</div>
+          ) : active === 'dashboard' ? (
+            <><TaxiLiveOffice/><LiveDispatchBoard
+              data={dispatchData}
+              drivers={drivers}
+              vehicles={fleet.vehicles}
+              onNew={() => setDispatchOpen(true)}
+              onEdit={id => setDispatchOpen(id)}
+            /></>
           ) : (
             <ModulePlaceholder active={active} onNewTrip={() => setDispatchOpen(true)} />
           )}
         </section>
       </main>
 
+      <nav className="mobile-app-nav" aria-label="Schnellnavigation">
+        {mobileTabs.map(([id,label,Icon])=><button key={id} aria-current={active===id?'page':undefined} onClick={()=>navigate(id)}><Icon size={23}/><span>{label}</span></button>)}
+        <button aria-label="Weitere Bereiche" aria-expanded={mobileNav} aria-current={!mobileTabs.some(([id])=>id===active)?'page':undefined} onClick={()=>setMobileNav(true)}><MoreHorizontal size={23}/><span>Mehr</span></button>
+      </nav>
+
       {dispatchOpen && can(PERMISSIONS.TRIPS_MANAGE) && (
-        <DispatchModal
-          trips={trips}
+        <LiveDispatchModal
+          trip={dispatchOpen === true ? null : dispatchData.trips.find(item => item.id === dispatchOpen)}
+          trips={dispatchData.trips}
+          clients={clientData.clients}
           drivers={drivers}
-          tripId={dispatchOpen === true ? null : dispatchOpen}
+          vehicles={fleet.vehicles}
           onClose={() => setDispatchOpen(false)}
-          onAssign={assignTrip}
-          onCreate={(trip) => {
-            setTrips(prev => [...prev, trip]);
+          onSaved={async () => {
             setDispatchOpen(false);
+            await Promise.all([dispatchData.refresh(), fleet.refresh()]);
           }}
         />
       )}
@@ -310,10 +305,10 @@ function Feature({ icon: Icon, title, text }) {
 
 function ModulePlaceholder({ active, onNewTrip }) {
   const content = {
-    kunden: ['Kundenverwaltung', 'Kunden, Stammkunden, Firmenkunden, Versicherungsdaten und Fahrt-Historie.'],
+    kunden: ['Kundenverwaltung', 'Patienten, Stammkunden, Angehörige, Versicherungsdaten und Fahrt-Historie.'],
     termine: ['Terminverwaltung', 'Einmalige und wiederkehrende Fahrten planen, Serienfahrten verwalten und Konflikte erkennen.'],
-    kassen: ['Kassen, Verträge & Tarife', 'Krankenkassen-Verträge, Taxitarife, Pauschalen und Abrechnungsregeln hinterlegen.'],
-    abrechnung: ['Abrechnungen', 'Fahrten sammeln, prüfen und als Abrechnungsläufe an die Kassen übergeben.'],
+    kassen: ['Kassen & Verträge', 'Verträge, Preislisten, Pauschalen und Abrechnungsregeln je Krankenkasse hinterlegen.'],
+    abrechnung: ['Abrechnungen', 'Krankenfahrten sammeln, prüfen und als Abrechnungsläufe an die Kassen übergeben.'],
     rechnungen: ['Rechnungen', 'Privatfahrten, Zuzahlungen und Zusatzleistungen abrechnen.'],
     fahrzeuge: ['Fahrzeugverwaltung', 'Fahrzeuge, Kilometerstände, Wartung, TÜV, Schäden und Verfügbarkeit.'],
     fahrer: ['Fahrer & Personal', 'Fahrer, Schichten, Dokumente, Führerscheine und Einsatzzeiten verwalten.'],
@@ -331,7 +326,7 @@ function ModulePlaceholder({ active, onNewTrip }) {
       <p>{content[1]}</p>
       <div className="placeholder-actions">
         <button className="primary-button" onClick={onNewTrip}><Plus size={18}/> Neue Fahrt anlegen</button>
-        <button className="secondary-button"><Settings size={18}/> Modul konfigurieren</button>
+        <span className="unfinished-module">Noch nicht umgesetzt</span>
       </div>
     </section>
   );
@@ -408,7 +403,7 @@ function DriverApp({ trips, driverName, currentTrip, onStatus, onLogout, user })
   return (
     <div className="driver-app">
       <header className="driver-topbar">
-        <img src={LOGO} alt="TARIQ Taxi Zentrale" />
+        <img src={LOGO} alt={APP_CONFIG.name} />
         <div className="driver-online"><span className="online-dot"/> Online · verfügbar</div>
         <div className="driver-select">
           <div className="driver-identity"><strong>{user.name}</strong><span>{ROLE_LABELS[user.role]}</span></div>
@@ -417,7 +412,6 @@ function DriverApp({ trips, driverName, currentTrip, onStatus, onLogout, user })
       </header>
 
       <main className="driver-content">
-        <TaxiLiveRide vehicle={currentTrip?.vehicle || ""} />
         <div className="driver-page-heading">
           <div><p className="eyebrow">FAHRER WEB APP</p><h1>Meine Aufträge</h1><p>Aufträge live vom Büro erhalten und Fahrtstatus mit einem Klick melden.</p></div>
           <div className="driver-count">{myTrips.length}<span>offene Aufträge</span></div>

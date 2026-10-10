@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Car, CheckCircle2, Navigation, XCircle } from 'lucide-react';
 import { DESTINATION_MODE, navigationUrl } from '../domain/taxiLive.js';
-import { cancelWalkInRide, finishWalkInRide, reportTaxiLocation, startWalkInRide, updateWalkInRide } from '../data/taxiLive.js';
+import { cancelWalkInRide, finishWalkInRide, reportTaxiLocation, startWalkInRide, updateWalkInRide, loadActiveTaxiRides } from '../data/taxiLive.js';
 
 const locate=()=>new Promise((resolve,reject)=>{
   if(!navigator.geolocation)return reject(new Error('Standort ist auf diesem Gerät nicht verfügbar.'));
@@ -9,18 +9,23 @@ const locate=()=>new Promise((resolve,reject)=>{
 });
 const point=p=>({latitude:p.coords.latitude,longitude:p.coords.longitude,accuracy:p.coords.accuracy,heading:p.coords.heading,speed:p.coords.speed});
 
-export default function TaxiLiveRide({ vehicle }) {
+export default function TaxiLiveRide({ vehicle, user, disabled=false, onActiveChange=()=>{}, api }) {
+  const service=api||{load:loadActiveTaxiRides,start:startWalkInRide,update:updateWalkInRide,finish:finishWalkInRide,cancel:cancelWalkInRide,location:reportTaxiLocation};
+  const [loaded,setLoaded]=useState(false);
+  React.useEffect(()=>{let alive=true;setLoaded(false);service.load(user?.driverId).then(r=>{if(!alive)return;if(!r.ok)throw Error(r.message);const current=r.rides?.[0]||null;setRide(current);setDestination(current?.destination_address||'');setMode(current?.destination_mode||DESTINATION_MODE.UNKNOWN);setLoaded(true);}).catch(e=>{if(alive)setMessage(e.message)});return()=>{alive=false}},[user?.driverId]);
   const [ride,setRide]=useState(null);
   const [mode,setMode]=useState(DESTINATION_MODE.UNKNOWN);
   const [destination,setDestination]=useState('');
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
 
+  React.useEffect(()=>{onActiveChange(Boolean(ride)||!loaded)},[ride?.id,loaded,onActiveChange]);
   async function start(){
+    if(disabled||!loaded)return;
     setBusy(true);setMessage('');
     try{
       const p=point(await locate());
-      const result=await startWalkInRide({source:'manual',pickupLat:p.latitude,pickupLng:p.longitude,destinationMode:mode,destinationAddress:destination});
+      const result=await service.start({source:'manual',pickupLat:p.latitude,pickupLng:p.longitude,destinationMode:mode,destinationAddress:destination});
       if(!result.ok)throw new Error(result.message);
       setRide(result.data.ride);
     }catch(e){setMessage(e.message);}finally{setBusy(false);}
@@ -29,15 +34,15 @@ export default function TaxiLiveRide({ vehicle }) {
   async function saveDestination(value){
     setDestination(value);
     if(!ride)return;
-    const result=await updateWalkInRide({rideId:ride.id,destinationAddress:value,destinationMode:value?DESTINATION_MODE.KNOWN:mode});
-    if(result.ok)setRide(result.data.ride);
+    const result=await service.update({rideId:ride.id,destinationAddress:value,destinationMode:value?DESTINATION_MODE.KNOWN:mode});
+    if(result.ok)setRide(result.data.ride);else setMessage(result.message);
   }
 
   async function finish(){
     setBusy(true);setMessage('');
     try{
       const p=point(await locate());
-      const result=await finishWalkInRide({rideId:ride.id,destinationLat:p.latitude,destinationLng:p.longitude,destinationAddress:destination});
+      const result=await service.finish({rideId:ride.id,destinationLat:p.latitude,destinationLng:p.longitude,destinationAddress:destination});
       if(!result.ok)throw new Error(result.message);
       setRide(null);setDestination('');setMode(DESTINATION_MODE.UNKNOWN);
     }catch(e){setMessage(e.message);}finally{setBusy(false);}
@@ -45,7 +50,7 @@ export default function TaxiLiveRide({ vehicle }) {
 
   async function cancel(){
     setBusy(true);setMessage('');
-    const result=await cancelWalkInRide(ride.id);
+    const result=await service.cancel(ride.id);
     if(result.ok){setRide(null);setDestination('');setMode(DESTINATION_MODE.UNKNOWN);}
     else setMessage(result.message);
     setBusy(false);
@@ -55,7 +60,7 @@ export default function TaxiLiveRide({ vehicle }) {
     if(!ride)return;
     try{
       const p=point(await locate());
-      await reportTaxiLocation({rideId:ride.id,...p});
+      await service.location({rideId:ride.id,...p});
     }catch{}
   }
 
@@ -68,6 +73,7 @@ export default function TaxiLiveRide({ vehicle }) {
 
   if(!ride)return <section className="taxi-live-card">
     <div className="taxi-live-title"><strong><span className="taxi-live-dot free"/> Taxi frei</strong><small>{vehicle||'Fahrzeug laut Schicht'}</small></div>
+    {disabled&&<p>Einsteigerfahrten benötigen eine aktive Schicht ohne laufenden Auftrag und eine Internetverbindung.</p>}
     <p>Einsteiger starten: Abfahrt wird automatisch per GPS gespeichert.</p>
     <div className="destination-choice">
       <label><input type="radio" checked={mode===DESTINATION_MODE.KNOWN} onChange={()=>setMode(DESTINATION_MODE.KNOWN)}/> Ziel bekannt</label>
@@ -75,14 +81,14 @@ export default function TaxiLiveRide({ vehicle }) {
       <label><input type="radio" checked={mode===DESTINATION_MODE.UNKNOWN} onChange={()=>setMode(DESTINATION_MODE.UNKNOWN)}/> Keine Adresse</label>
     </div>
     {mode===DESTINATION_MODE.KNOWN&&<input value={destination} onChange={e=>setDestination(e.target.value)} placeholder="Zieladresse" />}
-    <button className="primary-button" disabled={busy||(mode===DESTINATION_MODE.KNOWN&&!destination.trim())} onClick={start}><Car size={18}/> {busy?'GPS wird ermittelt …':'Fahrgast eingestiegen · Besetzt'}</button>
+    <button className="primary-button" disabled={busy||disabled||!loaded||(mode===DESTINATION_MODE.KNOWN&&!destination.trim())} onClick={start}><Car size={18}/> {busy?'GPS wird ermittelt …':'Fahrgast eingestiegen · Besetzt'}</button>
     {message&&<p className="taxi-live-error">{message}</p>}
   </section>;
 
   const nav=navigationUrl({destinationAddress:destination});
   return <section className="taxi-live-card occupied">
     <div className="taxi-live-title"><strong><span className="taxi-live-dot occupied"/> Besetzt</strong><small>seit {new Date(ride.started_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'})}</small></div>
-    <label className="taxi-destination"><span>Ziel</span><input value={destination} onChange={e=>saveDestination(e.target.value)} placeholder="Ziel noch nicht angegeben"/></label>
+    <label className="taxi-destination"><span>Ziel</span><input value={destination} onChange={e=>setDestination(e.target.value)} onBlur={e=>saveDestination(e.target.value)} placeholder="Ziel noch nicht angegeben"/></label>
     <div className="taxi-live-actions">
       {nav?<a className="primary-button" href={nav} target="_blank" rel="noreferrer"><Navigation size={18}/> Navigation</a>:<button className="secondary-button" disabled><Navigation size={18}/> Ziel fehlt</button>}
       <button className="secondary-button" disabled={busy} onClick={finish}><CheckCircle2 size={18}/> Fahrt beenden</button>

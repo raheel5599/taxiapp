@@ -12,7 +12,7 @@ export default function TaxiLiveOffice() {
   const [error, setError] = useState('');
 
   async function refresh() {
-    const [rideResult, locationResult] = await Promise.all([
+    try { const [rideResult, locationResult] = await Promise.all([
       loadActiveTaxiRides(),
       loadTaxiLocations()
     ]);
@@ -25,6 +25,7 @@ export default function TaxiLiveOffice() {
     }
 
     if (locationResult.ok) setLocations(locationResult.locations);
+    } catch(e){setError(e.message);}
   }
 
   useEffect(() => {
