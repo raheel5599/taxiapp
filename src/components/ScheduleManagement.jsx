@@ -23,7 +23,7 @@ export default function ScheduleManagement({data,clients}){
 
   return <section className="schedule-page">
     <div className="schedule-toolbar panel">
-      <div><p className="eyebrow">TERMIN- & SERIENPLANUNG</p><h2>Serienfahrten</h2><p>Dialyse, Reha, Therapie und andere wiederkehrende Fahrten automatisch planen.</p></div>
+      <div><p className="eyebrow">TERMIN- & SERIENPLANUNG</p><h2>Serienfahrten</h2><p>Taxi-, Flughafen-, Kurier- und Krankenfahrten regelmäßig planen.</p></div>
       <button className="primary-button" onClick={()=>setEditing({})}><Plus size={17}/> Serienfahrt anlegen</button>
     </div>
 
@@ -41,7 +41,7 @@ export default function ScheduleManagement({data,clients}){
       <section className="panel">
         <div className="panel-title"><div><Repeat2 size={19}/><strong>Aktive Serien</strong></div></div>
         <div className="series-list">
-          {data.loading?<div className="users-loading">Serienfahrten werden geladen …</div>:data.series.length===0?<div className="schedule-empty"><CalendarDays/><h3>Noch keine Serienfahrt</h3><p>Lege z. B. eine Dialysefahrt Mo/Mi/Fr an.</p></div>:data.series.map(item=>{
+          {data.loading?<div className="users-loading">Serienfahrten werden geladen …</div>:data.series.length===0?<div className="schedule-empty"><CalendarDays/><h3>Noch keine Serienfahrt</h3><p>Lege zum Beispiel eine regelmäßige Taxifahrt an.</p></div>:data.series.map(item=>{
             const customer=clients.find(c=>c.id===item.customerId);
             return <article key={item.id} className="series-card">
               <div className="series-card-main">
@@ -81,7 +81,7 @@ function SeriesEditor({item,clients,onClose,onSaved,onError}){
   const [form,setForm]=useState({
     name:item?.name||'',
     customerId:item?.customerId||initialCustomer?.id||'',
-    tripType:item?.tripType||'Dialyse',
+    tripType:item?.tripType||APP_CONFIG.tripTypes[0],
     weekdays:item?.weekdays||[1,3,5],
     startDate:item?.startDate||new Date().toISOString().slice(0,10),
     endDate:item?.endDate||'',
@@ -127,13 +127,14 @@ function SeriesEditor({item,clients,onClose,onSaved,onError}){
       <div className="modal-head"><div><p className="eyebrow">SERIENFAHRT</p><h2>{item?'Serienfahrt bearbeiten':'Neue Serienfahrt'}</h2></div><button type="button" className="icon-button" onClick={onClose}><X/></button></div>
       <div className="form-grid">
         <label><span>Kunde</span><select value={form.customerId} onChange={e=>chooseCustomer(e.target.value)} required><option value="">Kunde auswählen</option>{clients.map(c=><option key={c.id} value={c.id}>{c.fullName}{c.isRegular?' · Stammkunde':''}</option>)}</select></label>
-        <label><span>Name der Serie</span><input value={form.name} onChange={e=>set('name',e.target.value)} placeholder="z. B. Dialyse Mo/Mi/Fr" required/></label>
+        <label><span>Name der Serie</span><input value={form.name} onChange={e=>set('name',e.target.value)} placeholder="z. B. Taxi Mo/Mi/Fr" required/></label>
         <label><span>Fahrtart</span><select value={form.tripType} onChange={e=>set('tripType',e.target.value)}>{APP_CONFIG.tripTypes.map(type=><option key={type}>{type}</option>)}</select></label>
         <label><span>Häufiges Ziel</span><select value={form.destinationId} onChange={e=>chooseDestination(e.target.value)}><option value="">Manuell eingeben</option>{(customer?.destinations||[]).map(d=><option key={d.id} value={d.id}>{d.label}</option>)}</select></label>
         <label className="wide"><span>Abholadresse</span><input value={form.originAddress} onChange={e=>set('originAddress',e.target.value)} required/></label>
         <label className="wide"><span>Zieladresse</span><input value={form.destinationAddress} onChange={e=>set('destinationAddress',e.target.value)} required/></label>
       </div>
 
+      <p>Taxi, Großraumtaxi, Flughafentransfer und Kurierfahrt werden privat abgerechnet. Den tatsächlichen Preis und Steuersatz vor der Rechnung unter Abrechnungen prüfen.</p>
       <div className="form-section-title">Wochentage</div>
       <div className="weekday-picker">{days.map(day=><button type="button" key={day} className={form.weekdays.includes(day)?'active':''} onClick={()=>toggleDay(day)}>{dayLabels[day]}</button>)}</div>
 

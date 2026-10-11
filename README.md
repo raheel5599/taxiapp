@@ -8,6 +8,10 @@ Taxi-Marke, Fahrtarten und die begonnene Einsteiger-/GPS-Funktion bleiben erhalt
 
 Unter Einstellungen müssen die eigenen Unternehmens- und Bankdaten gespeichert werden, bevor neue Rechnungen ausgestellt werden. Bestehende Dokumente behalten ihren Aussteller-Snapshot. Derzeit sind Mahnungen für Eigenanteilsrechnungen verfügbar, keine allgemeine Taxi-Mahnautomatik.
 
+Neue normale Taxi-Serien starten mit Fahrtart Taxi. Neu erzeugte Taxi-/Großraum-/Flughafen-/Kuriertermine werden ausdrücklich privat angelegt; medizinische Serien und Fahrdienst behalten ihre bisherige Auswahl. Vor Rechnungsstellung ist der tatsächliche Preis und Steuersatz zu bestätigen. Bereits bestehende Termine und Rechnungen werden nicht geändert.
+
+Einsteigerstatus wird nach Verbindungswechsel neu geprüft. Bei Fehlern gibt es eine erneute Prüfung statt einer falschen Frei-Anzeige. Zugewiesene Aufträge funktionieren nach Offline-Neuladen nur mit einem frischen, freien Einsteigerstatus derselben Schicht; aktive oder unklare Einsteiger sperren weitere Aufträge. Der lokale Status enthält keine GPS-/Adress-/Fahrgastdaten und wird beim Abmelden entfernt.
+
 ## Noch offen
 - Echte HALE-Geräteanbindung und automatische Taxameterübertragung.
 - Einsteiger automatisch in die reguläre Abrechnung übernehmen (aktuell eigener Live-Datensatz).

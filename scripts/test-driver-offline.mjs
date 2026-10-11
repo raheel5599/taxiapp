@@ -22,5 +22,30 @@ try{
  await page.evaluate(async()=>{const api=window.offlineIdentityApi;await api.rememberOfflineDriver({id:'offline-user',driverId:'test-d',businessUnitId:'offline-unit',role:'driver',name:'Testfahrer'});if((await api.restoreOfflineDriver()).user.id!=='offline-user')throw Error('Identity restore failed');await api.driverOfflineStore.update('identity',r=>({...r,verifiedAt:Date.now()-12*60*60*1000}));if(await api.restoreOfflineDriver())throw Error('Expired identity restored');await api.forgetOfflineIdentity();const r=await api.driverOfflineStore.read('offline-unit:offline-user:test-d');if(r.trips.length||r.shiftReport)throw Error('Logout left sensitive snapshots')});await context.close();console.log(`PASS ${name} ${size}: actual offline reload, four queued steps, original times, retry ID, logout/shift protections and replay`)
  }
  const conflictContext=await browser.newContext({viewport:{width:390,height:844}}),conflictPage=await conflictContext.newPage();await conflictPage.route('**/*',r=>r.request().url().startsWith(origin)?r.continue():r.abort());await conflictPage.goto(origin+'/?screen=driver&assigned=1&offline=1');await conflictPage.getByLabel('Startkilometerstand',{exact:true}).fill('1001');await conflictPage.getByRole('button',{name:'Schicht anmelden',exact:true}).click();await conflictPage.getByRole('button',{name:'Auf dem Weg',exact:true}).waitFor();await conflictPage.evaluate(()=>window.offlineConflict=true);await conflictPage.getByRole('button',{name:'Auf dem Weg',exact:true}).click();await conflictPage.getByText(/Test: Fahrt vom Büro storniert/).waitFor();assert.equal(await conflictPage.getByRole('button',{name:'Auf dem Weg',exact:true}).isDisabled(),true);await conflictPage.getByRole('button',{name:'Offene Meldungen mit Büro klären',exact:true}).click();assert.equal(await conflictPage.getByRole('button',{name:'Geklärte Meldungen verwerfen',exact:true}).isDisabled(),true);await conflictPage.getByRole('checkbox').check();await conflictPage.getByRole('button',{name:'Geklärte Meldungen verwerfen',exact:true}).click();await conflictPage.getByLabel('Offline und Übertragung',{exact:true}).getByText(/0 Fahrtmeldung/).waitFor();assert.equal(await conflictPage.evaluate(()=>JSON.parse(sessionStorage.getItem('offline-server-trips')||'null')),null);await conflictContext.close();console.log(`PASS ${name}: server conflict blocks further actions; explicit office resolution clears only local queue`);
+ const guardContext=await browser.newContext({viewport:{width:390,height:844}}),guardPage=await guardContext.newPage();
+ await guardPage.route('**/*',r=>r.request().url().startsWith(origin)?r.continue():r.abort());
+ if(name==='webkit')await guardContext.addInitScript(()=>Object.defineProperty(navigator,'onLine',{get:()=>!localStorage.getItem('fixture-offline')}));
+ await guardPage.goto(origin+'/?screen=driver&assigned=1&offline=1');
+ await guardPage.getByLabel('Startkilometerstand',{exact:true}).fill('1001');
+ await guardPage.getByRole('button',{name:'Schicht anmelden',exact:true}).click();
+ await guardPage.getByText('Taxi frei',{exact:true}).waitFor();
+ await guardPage.evaluate(()=>window.taxiLoadFail=true);
+ await offline(guardContext,guardPage,name);await reconnect(guardContext,guardPage,name);
+ await guardPage.getByText('Taxi-Status ungeprüft',{exact:true}).waitFor();
+ await guardPage.getByRole('button',{name:'Einsteigerstatus erneut prüfen',exact:true}).waitFor();
+ assert.equal(await guardPage.getByRole('button',{name:'Auf dem Weg',exact:true}).isDisabled(),true);
+ await guardPage.evaluate(()=>window.taxiLoadFail=false);
+ await guardPage.getByRole('button',{name:'Einsteigerstatus erneut prüfen',exact:true}).click();
+ await guardPage.getByText('Taxi frei',{exact:true}).waitFor();
+ await guardPage.getByRole('button',{name:'Auf dem Weg',exact:true}).waitFor();
+ assert.equal(await guardPage.getByRole('button',{name:'Auf dem Weg',exact:true}).isEnabled(),true);
+ await guardPage.evaluate(async()=>{await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;await window.offlineIdentityApi.driverOfflineStore.update('offline-unit:offline-user:test-d',r=>({...r,taxiStatus:{...r.taxiStatus,active:true}}))});
+ await guardPage.waitForFunction(()=>navigator.serviceWorker.controller!==null);
+ await offline(guardContext,guardPage,name);await guardPage.reload();
+ await guardPage.getByText('Taxi-Status ungeprüft',{exact:true}).waitFor();
+ assert.equal(await guardPage.getByRole('button',{name:'Auf dem Weg',exact:true}).isDisabled(),true);
+ await reconnect(guardContext,guardPage,name);await guardPage.getByText('Taxi frei',{exact:true}).waitFor();
+ assert.equal(await guardPage.getByRole('button',{name:'Auf dem Weg',exact:true}).isEnabled(),true);
+ await guardContext.close();console.log(`PASS ${name}: failed live-status lookup blocks actions, retry recovers, active offline status remains blocked until verified online`);
  }finally{await browser.close()}}
 }finally{server.kill('SIGTERM')}
