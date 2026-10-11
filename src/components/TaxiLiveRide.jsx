@@ -49,7 +49,7 @@ export default function TaxiLiveRide({ vehicle, user, disabled=false, shiftId, o
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState('');
 
-  React.useEffect(()=>{onActiveChange(Boolean(ride)||!loaded)},[ride?.id,loaded,onActiveChange]);
+  React.useEffect(()=>{onActiveChange(Boolean(ride)||!loaded||busy)},[ride?.id,loaded,busy,onActiveChange]);
   async function start(){
     if(disabled||!loaded)return;
     setBusy(true);setMessage('');
@@ -66,7 +66,7 @@ export default function TaxiLiveRide({ vehicle, user, disabled=false, shiftId, o
     setDestination(value);
     if(!ride)return;
     const result=await service.update({rideId:ride.id,destinationAddress:value,destinationMode:value?DESTINATION_MODE.KNOWN:mode});
-    if(result.ok)setRide(result.data.ride);else setMessage(result.message);
+    if(result.ok)setRide(result.data.ride);else {setLoaded(false);setMessage(result.message);}
   }
 
   async function finish(){
@@ -76,14 +76,14 @@ export default function TaxiLiveRide({ vehicle, user, disabled=false, shiftId, o
       const result=await service.finish({rideId:ride.id,destinationLat:p.latitude,destinationLng:p.longitude,destinationAddress:destination});
       if(!result.ok)throw new Error(result.message);
       await remember(false);setRide(null);setDestination('');setMode(DESTINATION_MODE.UNKNOWN);
-    }catch(e){setMessage(e.message);}finally{setBusy(false);}
+    }catch(e){setLoaded(false);setMessage(e.message);}finally{setBusy(false);}
   }
 
   async function cancel(){
     setBusy(true);setMessage('');
-    let result;try{result=await service.cancel(ride.id)}catch(e){setMessage(e.message);setBusy(false);return;}
+    let result;try{result=await service.cancel(ride.id)}catch(e){setLoaded(false);setMessage(e.message);setBusy(false);return;}
     if(result.ok){try{await remember(false);setRide(null);setDestination('');setMode(DESTINATION_MODE.UNKNOWN)}catch(e){setLoaded(false);setMessage(e.message)}}
-    else setMessage(result.message);
+    else {setLoaded(false);setMessage(result.message);}
     setBusy(false);
   }
 
